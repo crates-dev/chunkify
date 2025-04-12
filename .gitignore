@@ -1,0 +1,5 @@
+/target
+*.log
+/logs
+/uploads
+Cargo.lock
