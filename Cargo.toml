@@ -1,6 +1,6 @@
 [package]
 name = "chunkify"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2024"
 authors = ["ltpp-universe <root@ltpp.vip>"] 
 license = "MIT"
@@ -20,7 +20,10 @@ exclude = [
 
 [dependencies]
 file-operation = "0.5.5"
+once_cell = "1.21.3"
+dashmap = "6.1.0"
 tokio = { version = "1.44.2", features = ["full"] }
+twox-hash = "2.1.0"
 
 [profile.dev]
 incremental = false
