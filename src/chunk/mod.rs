@@ -1,4 +1,4 @@
-pub mod constant;
+pub mod r#const;
 pub mod error;
 pub mod r#impl;
 pub mod lazy;
