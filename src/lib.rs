@@ -2,7 +2,7 @@ pub(crate) mod cfg;
 pub(crate) mod chunk;
 
 pub(crate) use chunk::lazy::*;
-pub(crate) use dashmap::DashMap;
+pub(crate) use dashmap::{DashMap, mapref::one::RefMut};
 pub(crate) use file_operation::*;
 pub(crate) use once_cell::sync::Lazy;
 pub(crate) use std::{

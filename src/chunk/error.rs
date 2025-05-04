@@ -9,6 +9,8 @@ pub enum ChunkStrategyError {
     MissingTotalChunks,
     MissingFileName,
     EmptyChunkData,
+    IndexOutOfBounds(usize, usize),
+    Merge,
     CreateDirectory(String),
     CreateChunkFile(String),
     WriteChunk(String),
@@ -41,6 +43,11 @@ impl fmt::Display for ChunkStrategyError {
             ChunkStrategyError::WriteOutput(msg) => {
                 &format!("Failed to write to output file: {}", msg)
             }
+            ChunkStrategyError::Merge => &format!("Failed to complete the file merge operation"),
+            ChunkStrategyError::IndexOutOfBounds(chunk_index, total_chunks) => &format!(
+                "Index {} out of bounds(total: {})",
+                chunk_index, total_chunks
+            ),
         };
         write!(f, "{}", message)
     }
