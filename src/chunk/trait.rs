@@ -8,4 +8,6 @@ pub trait HandleStrategy<'a>: Send + Sync {
         chunk_data: &'a [u8],
         chunk_index: usize,
     ) -> impl Future<Output = ChunkStrategyResult> + Send;
+
+    fn merge_chunks(&self) -> impl Future<Output = ChunkStrategyResult> + Send;
 }

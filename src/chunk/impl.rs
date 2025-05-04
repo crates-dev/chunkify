@@ -52,8 +52,34 @@ impl<'a> ChunkStrategy<'a> {
             })?;
         Ok(())
     }
+}
 
-    pub async fn merge_chunks(&self) -> ChunkStrategyResult {
+impl<'a> HandleStrategy<'a> for ChunkStrategy<'a> {
+    async fn save_chunk(&self, chunk_data: &'a [u8], chunk_index: usize) -> ChunkStrategyResult {
+        if !Path::new(&self.upload_dir).exists() {
+            fs::create_dir_all(&self.upload_dir)
+                .map_err(|e| ChunkStrategyError::CreateDirectory(e.to_string()))?;
+        }
+        let chunk_path: String = self.get_chunk_path(self.file_id, chunk_index);
+        self.save_chunk(&chunk_path, &chunk_data).await?;
+        let chunks_status: RefMut<'_, String, RwLock<Vec<bool>>> = UPLOADING_FILES
+            .entry(self.file_id.to_owned())
+            .or_insert_with(|| RwLock::new(vec![false; self.total_chunks]));
+        let mut chunks_status: RwLockWriteGuard<'_, Vec<bool>> = chunks_status.write().await;
+        if chunks_status.len() != self.total_chunks {
+            *chunks_status = vec![false; self.total_chunks];
+        }
+        if chunk_index >= chunks_status.len() {
+            return Err(ChunkStrategyError::IndexOutOfBounds(
+                chunk_index,
+                self.total_chunks,
+            ));
+        }
+        chunks_status[chunk_index] = true;
+        Ok(())
+    }
+
+    async fn merge_chunks(&self) -> ChunkStrategyResult {
         let chunks_status: RefMut<'_, String, RwLock<Vec<bool>>> = UPLOADING_FILES
             .entry(self.file_id.to_owned())
             .or_insert_with(|| RwLock::new(vec![false; self.total_chunks]));
@@ -87,32 +113,6 @@ impl<'a> ChunkStrategy<'a> {
                 .map_err(|e| ChunkStrategyError::WriteOutput(e.to_string()))?;
             let _ = fs::remove_file(&chunk_path);
         }
-        Ok(())
-    }
-}
-
-impl<'a> HandleStrategy<'a> for ChunkStrategy<'a> {
-    async fn save_chunk(&self, chunk_data: &'a [u8], chunk_index: usize) -> ChunkStrategyResult {
-        if !Path::new(&self.upload_dir).exists() {
-            fs::create_dir_all(&self.upload_dir)
-                .map_err(|e| ChunkStrategyError::CreateDirectory(e.to_string()))?;
-        }
-        let chunk_path: String = self.get_chunk_path(self.file_id, chunk_index);
-        self.save_chunk(&chunk_path, &chunk_data).await?;
-        let chunks_status: RefMut<'_, String, RwLock<Vec<bool>>> = UPLOADING_FILES
-            .entry(self.file_id.to_owned())
-            .or_insert_with(|| RwLock::new(vec![false; self.total_chunks]));
-        let mut chunks_status: RwLockWriteGuard<'_, Vec<bool>> = chunks_status.write().await;
-        if chunks_status.len() != self.total_chunks {
-            *chunks_status = vec![false; self.total_chunks];
-        }
-        if chunk_index >= chunks_status.len() {
-            return Err(ChunkStrategyError::IndexOutOfBounds(
-                chunk_index,
-                self.total_chunks,
-            ));
-        }
-        chunks_status[chunk_index] = true;
         Ok(())
     }
 }
