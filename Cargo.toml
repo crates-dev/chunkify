@@ -1,12 +1,12 @@
 [package]
 name = "chunkify"
-version = "0.6.0"
+version = "0.6.1"
 edition = "2024"
-authors = ["ltpp-universe <root@ltpp.vip>"] 
+authors = ["eastspire <root@ltpp.vip>"] 
 license = "MIT"
 description = """A simple and efficient chunking library for Rust."""
 keywords = ["http", "file", "chunk", "upload", "web"]
-repository = "https://github.com/ltpp-universe/chunkify.git"
+repository = "https://github.com/eastspire/chunkify.git"
 categories = ["network-programming", "web-programming"]
 exclude = [
     "target",
@@ -19,10 +19,10 @@ exclude = [
 ]
 
 [dependencies]
-file-operation = "0.5.9"
+file-operation = "0.5.10"
 once_cell = "1.21.3"
 dashmap = "6.1.0"
-tokio = { version = "1.44.2", features = ["full"] }
+tokio = { version = "1.45.0", features = ["full"] }
 twox-hash = "2.1.0"
 
 [profile.dev]
