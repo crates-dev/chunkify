@@ -5,7 +5,7 @@
 [![](https://img.shields.io/crates/v/chunkify.svg)](https://crates.io/crates/chunkify)
 [![](https://img.shields.io/crates/d/chunkify.svg)](https://img.shields.io/crates/d/chunkify.svg)
 [![](https://docs.rs/chunkify/badge.svg)](https://docs.rs/chunkify)
-[![](https://github.com/ltpp-universe/chunkify/workflows/Rust/badge.svg)](https://github.com/ltpp-universe/chunkify/actions?query=workflow:Rust)
+[![](https://github.com/eastspire/chunkify/workflows/Rust/badge.svg)](https://github.com/eastspire/chunkify/actions?query=workflow:Rust)
 [![](https://img.shields.io/crates/l/chunkify.svg)](./LICENSE)
 
 </center>
@@ -52,4 +52,4 @@ Contributions are welcome! Please open an issue or submit a pull request.
 
 ## Contact
 
-For any inquiries, please reach out to the author at [ltpp-universe <root@ltpp.vip>](mailto:root@ltpp.vip).
+For any inquiries, please reach out to the author at [root@ltpp.vip](mailto:root@ltpp.vip).
