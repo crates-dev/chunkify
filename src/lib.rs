@@ -16,4 +16,4 @@ pub(crate) use std::{
 pub(crate) use tokio::sync::{RwLock, RwLockWriteGuard};
 pub(crate) use twox_hash::XxHash3_64;
 
-pub use chunk::{r#const::*, error::*, r#trait::*, r#type::*};
+pub use chunk::{r#const::*, error::*, r#struct::*, r#trait::*, r#type::*};
