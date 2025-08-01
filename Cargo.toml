@@ -1,6 +1,6 @@
 [package]
 name = "chunkify"
-version = "0.6.10"
+version = "0.6.11"
 edition = "2024"
 authors = ["root@ltpp.vip"]
 license = "MIT"
