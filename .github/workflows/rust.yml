@@ -1,4 +1,4 @@
-name: rust
+name: Rust
 
 on:
   push:
@@ -150,26 +150,6 @@ jobs:
           else
             echo "❌ publish failed, but continuing."
           fi
-
-  create_tag:
-    permissions:
-      contents: write
-      packages: write
-    needs: [setup, publish_crate]
-    if: needs.publish_crate.outputs.published == 'true' && needs.setup.outputs.tag != ''
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Create git tag
-        run: |
-          git config --local user.email "action@github.com"
-          git config --local user.name "GitHub Action"
-          git tag -a "${{ needs.setup.outputs.tag }}" -m "Release ${{ needs.setup.outputs.tag }}"
-          git push origin "${{ needs.setup.outputs.tag }}"
 
   create_release:
     permissions:
