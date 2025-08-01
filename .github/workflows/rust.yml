@@ -164,7 +164,18 @@ jobs:
           timeout_minutes: 10
           max_attempts: 6
           retry_on: error
-          command: cargo publish --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
+          command: |
+            if [ -z "$CARGO_REGISTRY_TOKEN" ]; then
+              echo "Error: CARGO_REGISTRY_TOKEN is not set"
+              echo "Please add CARGO_REGISTRY_TOKEN to your repository secrets"
+              exit 1
+            fi
+            echo "Logging in to crates.io..."
+            cargo login "$CARGO_REGISTRY_TOKEN"
+            echo "Publishing to crates.io..."
+            cargo publish
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
 
       - name: Success notification
         if: steps.check_tag.outputs.exists == 'false'
