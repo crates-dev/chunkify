@@ -1,4 +1,4 @@
-name: Rust
+name: rust
 
 on:
   push:
@@ -9,26 +9,26 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  Setup:
+  setup:
     runs-on: ubuntu-latest
     outputs:
-      Version: ${{ steps.read_version.outputs.version }}
-      Tag: ${{ steps.read_version.outputs.tag }}
-      Exists: ${{ steps.check_tag.outputs.exists }}
+      version: ${{ steps.read_version.outputs.version }}
+      tag: ${{ steps.read_version.outputs.tag }}
+      exists: ${{ steps.check_tag.outputs.exists }}
     steps:
-      - name: CheckoutCode
+      - name: checkout code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: InstallRustToolchain
+      - name: install rust toolchain
         uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
           override: true
           components: rustfmt, clippy
 
-      - name: CacheCargoRegistry
+      - name: cache cargo registry
         uses: actions/cache@v3
         with:
           path: |
@@ -37,93 +37,102 @@ jobs:
             target
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
-      - name: InstallTomlCli
+      - name: install toml-cli
         run: cargo install toml-cli
 
-      - name: ReadVersion
+      - name: read version
         id: read_version
         run: |
           VERSION=$(toml get Cargo.toml package.version --raw)
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "tag=v$VERSION" >> $GITHUB_OUTPUT
+          echo "detected version: $VERSION"
+          if [ -z "$VERSION" ]; then
+            echo "❌ failed to read version from Cargo.toml"
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
 
-      - name: CheckTag
+      - name: check if tag exists
         id: check_tag
         run: |
           if git rev-parse "v${{ steps.read_version.outputs.version }}" >/dev/null 2>&1; then
-            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "exists=true" >> "$GITHUB_OUTPUT"
           else
-            echo "exists=false" >> $GITHUB_OUTPUT
+            echo "exists=false" >> "$GITHUB_OUTPUT"
           fi
 
-  RunTests:
-    needs: Setup
-    if: needs.Setup.outputs.Exists == 'false'
+  run_tests:
+    needs: setup
+    if: needs.setup.outputs.exists == 'false'
     runs-on: ubuntu-latest
     steps:
-      - name: CheckoutCode
+      - name: checkout code
         uses: actions/checkout@v4
-      - name: InstallRustToolchain
+      - name: install rust toolchain
         uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
-      - name: RunCargoTests
+      - name: run cargo tests
         run: cargo test --all-features -- --nocapture
 
-  CheckFormat:
-    needs: Setup
-    if: needs.Setup.outputs.Exists == 'false'
+  check_format:
+    needs: setup
+    if: needs.setup.outputs.exists == 'false'
     runs-on: ubuntu-latest
     steps:
-      - name: CheckoutCode
+      - name: checkout code
         uses: actions/checkout@v4
-      - name: InstallRustfmt
+      - name: install rustfmt
         uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
           components: rustfmt
-      - name: RunCargoFmt
+      - name: run cargo fmt
         run: cargo fmt -- --check
 
-  RunClippy:
-    needs: Setup
-    if: needs.Setup.outputs.Exists == 'false'
+  run_clippy:
+    needs: setup
+    if: needs.setup.outputs.exists == 'false'
     runs-on: ubuntu-latest
     steps:
-      - name: CheckoutCode
+      - name: checkout code
         uses: actions/checkout@v4
-      - name: InstallClippy
+      - name: install clippy
         uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
           components: clippy
-      - name: RunCargoClippy
+      - name: run cargo clippy
         run: cargo clippy --all-features -- -A warnings
 
-  BuildRelease:
-    needs: Setup
-    if: needs.Setup.outputs.Exists == 'false'
+  build_release:
+    needs: setup
+    if: needs.setup.outputs.exists == 'false'
     runs-on: ubuntu-latest
     steps:
-      - name: CheckoutCode
+      - name: checkout code
         uses: actions/checkout@v4
-      - name: BuildWithCargo
+      - name: install rust toolchain
         uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
-      - name: RunCargoCheck
+      - name: run cargo check
         run: cargo check --release --all-features
 
-  PublishCrate:
-    needs: [RunTests, CheckFormat, RunClippy, BuildRelease]
-    if: needs.Setup.outputs.Exists == 'false'
+  publish_crate:
+    needs: [run_tests, check_format, run_clippy, build_release]
+    if: needs.setup.outputs.exists == 'false'
     runs-on: ubuntu-latest
+    outputs:
+      published: ${{ steps.try_publish.outputs.published }}
     steps:
-      - name: CheckoutCode
+      - name: checkout code
         uses: actions/checkout@v4
 
-      - name: TryPublishCrate
+      - name: try to publish crate
         id: try_publish
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
         run: |
           set -e
           echo "published=false" >> $GITHUB_OUTPUT
@@ -131,50 +140,46 @@ jobs:
           if cargo publish --allow-dirty; then
             echo "published=true" >> $GITHUB_OUTPUT
           else
-            echo "❌ Publish failed, but continuing workflow."
+            echo "❌ publish failed, but continuing."
           fi
-        env:
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
-    outputs:
-      Published: ${{ steps.try_publish.outputs.published }}
 
-  CreateTag:
-    needs: PublishCrate
-    if: needs.PublishCrate.outputs.Published == 'true'
+  create_tag:
+    needs: publish_crate
+    if: needs.publish_crate.outputs.published == 'true' && needs.setup.outputs.tag != ''
     runs-on: ubuntu-latest
     steps:
-      - name: CheckoutCode
+      - name: checkout code
         uses: actions/checkout@v4
-      - name: GitCreateTag
+      - name: create git tag
         run: |
           git config --local user.email "action@github.com"
-          git config --local user.name "GitHub Action"
-          git tag -a "${{ needs.Setup.outputs.Tag }}" -m "${{ needs.Setup.outputs.Tag }}"
-          git push origin "${{ needs.Setup.outputs.Tag }}"
+          git config --local user.name "github action"
+          git tag -a "${{ needs.setup.outputs.tag }}" -m "${{ needs.setup.outputs.tag }}"
+          git push origin "${{ needs.setup.outputs.tag }}"
 
-  CreateRelease:
-    needs: CreateTag
+  create_release:
+    needs: create_tag
+    if: always() && needs.publish_crate.outputs.published == 'true' && needs.setup.outputs.tag != ''
     runs-on: ubuntu-latest
-    if: always() && needs.PublishCrate.outputs.Published == 'true'
     steps:
-      - name: CreateGitHubRelease
+      - name: create github release
         run: |
-          gh release create "${{ needs.Setup.outputs.Tag }}" \
-            --title "${{ needs.Setup.outputs.Tag }}" \
-            --notes "Release ${{ needs.Setup.outputs.Tag }}" \
+          gh release create "${{ needs.setup.outputs.tag }}" \
+            --title "${{ needs.setup.outputs.tag }}" \
+            --notes "release ${{ needs.setup.outputs.tag }}" \
             --latest
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  SuccessNotice:
-    needs: CreateRelease
-    if: needs.PublishCrate.outputs.Published == 'true'
+  success_notice:
+    needs: create_release
+    if: needs.publish_crate.outputs.published == 'true'
     runs-on: ubuntu-latest
     steps:
-      - name: OutputSuccessInfo
+      - name: output release info
         run: |
           PACKAGE_NAME=$(toml get Cargo.toml package.name --raw)
-          echo "✅ Released version ${{ needs.Setup.outputs.Version }}"
+          echo "✅ released version ${{ needs.setup.outputs.version }}"
           echo "📦 https://crates.io/crates/${PACKAGE_NAME}"
-          echo "🏷️ Tag: ${{ needs.Setup.outputs.Tag }}"
-          echo "🚀 Release: ${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ needs.Setup.outputs.Tag }}"
+          echo "🏷️ tag: ${{ needs.setup.outputs.tag }}"
+          echo "🚀 release: ${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ needs.setup.outputs.tag }}"
