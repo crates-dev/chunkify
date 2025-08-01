@@ -130,14 +130,11 @@ jobs:
 
   CreateTag:
     needs: PublishCrate
+    if: needs.PublishCrate.outputs.Published == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: CheckoutCode
         uses: actions/checkout@v4
-
-      - name: DebugTagValue
-        run: echo "Tag='${{ needs.Setup.outputs.Tag }}'"
-
       - name: GitCreateTag
         run: |
           git config --local user.email "action@github.com"
@@ -148,6 +145,7 @@ jobs:
   CreateRelease:
     needs: CreateTag
     runs-on: ubuntu-latest
+    if: always() && needs.PublishCrate.outputs.Published == 'true'
     steps:
       - name: CreateGitHubRelease
         run: |
@@ -160,6 +158,7 @@ jobs:
 
   SuccessNotice:
     needs: CreateRelease
+    if: needs.PublishCrate.outputs.Published == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: OutputSuccessInfo
