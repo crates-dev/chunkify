@@ -1,4 +1,4 @@
-name: Rust
+name: Auto Release to Crates.io
 
 on:
   push:
@@ -11,13 +11,15 @@ env:
 jobs:
   release:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          token: ${{ secrets.CICD_TOKEN }}
 
       - name: Install Rust toolchain
         uses: actions-rs/toolchain@v1
@@ -119,7 +121,7 @@ jobs:
               --notes "${{ steps.version.outputs.tag }}" \
               --latest
         env:
-          CICD_TOKEN: ${{ secrets.CICD_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Publish to crates.io with retry
         if: steps.check_tag.outputs.exists == 'false'
