@@ -141,7 +141,8 @@ jobs:
             echo "❌ publish failed, but continuing."
           fi
   create_tag:
-    needs: publish_crate
+    needs:
+      [publish_crate, run_tests, check_format, run_clippy, build_release, setup]
     if: needs.publish_crate.outputs.published == 'true' && needs.setup.outputs.tag != ''
     runs-on: ubuntu-latest
     steps:
@@ -154,7 +155,16 @@ jobs:
           git tag -a "${{ needs.setup.outputs.tag }}" -m "${{ needs.setup.outputs.tag }}"
           git push origin "${{ needs.setup.outputs.tag }}"
   create_release:
-    needs: create_tag
+    needs:
+      [
+        create_tag,
+        publish_crate,
+        run_tests,
+        check_format,
+        run_clippy,
+        build_release,
+        setup,
+      ]
     if: always() && needs.publish_crate.outputs.published == 'true' && needs.setup.outputs.tag != ''
     runs-on: ubuntu-latest
     steps:
@@ -168,7 +178,17 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   success_notice:
-    needs: create_release
+    needs:
+      [
+        create_release,
+        create_tag,
+        publish_crate,
+        run_tests,
+        check_format,
+        run_clippy,
+        build_release,
+        setup,
+      ]
     if: needs.publish_crate.outputs.published == 'true'
     runs-on: ubuntu-latest
     steps:
