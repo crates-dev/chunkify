@@ -12,9 +12,9 @@ jobs:
   Setup:
     runs-on: ubuntu-latest
     outputs:
-      Version: ${{ steps.ReadVersion.outputs.Version }}
-      Tag: ${{ steps.ReadVersion.outputs.Tag }}
-      Exists: ${{ steps.CheckTag.outputs.Exists }}
+      Version: ${{ steps.read_version.outputs.version }}
+      Tag: ${{ steps.read_version.outputs.tag }}
+      Exists: ${{ steps.check_tag.outputs.exists }}
     steps:
       - name: CheckoutCode
         uses: actions/checkout@v4
@@ -41,19 +41,19 @@ jobs:
         run: cargo install toml-cli
 
       - name: ReadVersion
-        id: ReadVersion
+        id: read_version
         run: |
           VERSION=$(toml get Cargo.toml package.version --raw)
-          echo "Version=$VERSION" >> $GITHUB_OUTPUT
-          echo "Tag=v$VERSION" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "tag=v$VERSION" >> $GITHUB_OUTPUT
 
       - name: CheckTag
-        id: CheckTag
+        id: check_tag
         run: |
-          if git rev-parse "v${{ steps.ReadVersion.outputs.Version }}" >/dev/null 2>&1; then
-            echo "Exists=true" >> $GITHUB_OUTPUT
+          if git rev-parse "v${{ steps.read_version.outputs.version }}" >/dev/null 2>&1; then
+            echo "exists=true" >> $GITHUB_OUTPUT
           else
-            echo "Exists=false" >> $GITHUB_OUTPUT
+            echo "exists=false" >> $GITHUB_OUTPUT
           fi
 
   RunTests:
@@ -134,6 +134,10 @@ jobs:
     steps:
       - name: CheckoutCode
         uses: actions/checkout@v4
+
+      - name: DebugTagValue
+        run: echo "Tag='${{ needs.Setup.outputs.Tag }}'"
+
       - name: GitCreateTag
         run: |
           git config --local user.email "action@github.com"
