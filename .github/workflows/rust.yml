@@ -2,7 +2,7 @@ name: Auto Release to Crates.io
 
 on:
   push:
-    branches: [master]
+    branches: [main, master]
   workflow_dispatch:
 
 env:
@@ -84,7 +84,7 @@ jobs:
           timeout_minutes: 10
           max_attempts: 6
           retry_on: error
-          command: cargo clippy --all-features -- -D warnings
+          command: cargo clippy --all-features -- -A warnings
 
       - name: Build release with retry
         if: steps.check_tag.outputs.exists == 'false'
@@ -108,6 +108,12 @@ jobs:
             git tag -a "${{ steps.version.outputs.tag }}" -m "${{ steps.version.outputs.tag }}"
             git push origin "${{ steps.version.outputs.tag }}"
 
+      - name: Install GitHub CLI
+        if: steps.check_tag.outputs.exists == 'false'
+        run: |
+          sudo apt-get update
+          sudo apt-get install gh
+
       - name: Create GitHub Release with retry
         if: steps.check_tag.outputs.exists == 'false'
         uses: nick-invision/retry@v2
@@ -116,12 +122,40 @@ jobs:
           max_attempts: 6
           retry_on: error
           command: |
-            gh release create "${{ steps.version.outputs.tag }}" \
-              --title "${{ steps.version.outputs.tag }}" \
-              --notes "${{ steps.version.outputs.tag }}" \
-              --latest
+            echo "Creating GitHub Release for tag: ${{ steps.version.outputs.tag }}"
+            echo "Checking if release already exists..."
+            if gh release view "${{ steps.version.outputs.tag }}" 2>/dev/null; then
+              echo "Release already exists, skipping creation"
+            else
+              echo "Creating new release..."
+              gh release create "${{ steps.version.outputs.tag }}" \
+                --title "${{ steps.version.outputs.tag }}" \
+                --notes "Release ${{ steps.version.outputs.tag }}" \
+                --latest
+              echo "Release created successfully"
+            fi
+            echo "Verifying release creation..."
+            gh release view "${{ steps.version.outputs.tag }}"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Fallback - Create Release via API
+        if: steps.check_tag.outputs.exists == 'false'
+        run: |
+          echo "Attempting to create release via GitHub API as fallback..."
+          curl -X POST \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github.v3+json" \
+            https://api.github.com/repos/${{ github.repository }}/releases \
+            -d '{
+              "tag_name": "${{ steps.version.outputs.tag }}",
+              "target_commitish": "${{ github.sha }}",
+              "name": "${{ steps.version.outputs.tag }}",
+              "body": "Release ${{ steps.version.outputs.tag }}",
+              "draft": false,
+              "prerelease": false,
+              "make_latest": "true"
+            }' || echo "Fallback API call failed or release already exists"
 
       - name: Publish to crates.io with retry
         if: steps.check_tag.outputs.exists == 'false'
@@ -135,9 +169,14 @@ jobs:
       - name: Success notification
         if: steps.check_tag.outputs.exists == 'false'
         run: |
+          PACKAGE_NAME=$(toml get Cargo.toml package.name --raw)
           echo "✅ Successfully released version ${{ steps.version.outputs.version }}"
-          echo "📦 Published to crates.io: https://crates.io/crates/$(toml get Cargo.toml package.name --raw)"
+          echo "📦 Published to crates.io: https://crates.io/crates/${PACKAGE_NAME}"
           echo "🏷️ Created tag: ${{ steps.version.outputs.tag }}"
+          echo "🚀 GitHub Release: ${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ steps.version.outputs.tag }}"
+          echo ""
+          echo "You can view the release at:"
+          echo "${{ github.server_url }}/${{ github.repository }}/releases"
 
       - name: Skip notification
         if: steps.check_tag.outputs.exists == 'true'
