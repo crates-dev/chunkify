@@ -121,12 +121,24 @@ jobs:
     steps:
       - name: CheckoutCode
         uses: actions/checkout@v4
-      - name: PublishToCratesIo
+
+      - name: TryPublishCrate
+        id: try_publish
         run: |
-          cargo login "${{ secrets.CARGO_REGISTRY_TOKEN }}"
-          cargo publish --allow-dirty
+          set -e
+          echo "published=false" >> $GITHUB_OUTPUT
+
+          echo "${{ secrets.CARGO_REGISTRY_TOKEN }}" | cargo login
+
+          if cargo publish --allow-dirty; then
+            echo "published=true" >> $GITHUB_OUTPUT
+          else
+            echo "❌ Publish failed, but continuing workflow."
+          fi
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+    outputs:
+      Published: ${{ steps.try_publish.outputs.published }}
 
   CreateTag:
     needs: PublishCrate
