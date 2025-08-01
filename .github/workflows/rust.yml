@@ -127,9 +127,7 @@ jobs:
         run: |
           set -e
           echo "published=false" >> $GITHUB_OUTPUT
-
           echo "${{ secrets.CARGO_REGISTRY_TOKEN }}" | cargo login
-
           if cargo publish --allow-dirty; then
             echo "published=true" >> $GITHUB_OUTPUT
           else
