@@ -9,26 +9,26 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  release:
+  setup:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      packages: write
-
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+      exists: ${{ steps.check_tag.outputs.exists }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Install Rust toolchain
+      - name: Install Rust
         uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
           override: true
           components: rustfmt, clippy
 
-      - name: Cache cargo registry
+      - name: Cache cargo
         uses: actions/cache@v3
         with:
           path: |
@@ -40,11 +40,10 @@ jobs:
       - name: Install toml-cli
         run: cargo install toml-cli
 
-      - name: Read version from Cargo.toml
+      - name: Read version
         id: version
         run: |
           VERSION=$(toml get Cargo.toml package.version --raw)
-          echo "Current version: $VERSION"
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "tag=v$VERSION" >> $GITHUB_OUTPUT
 
@@ -52,148 +51,111 @@ jobs:
         id: check_tag
         run: |
           if git rev-parse "v${{ steps.version.outputs.version }}" >/dev/null 2>&1; then
-            echo "Tag v${{ steps.version.outputs.version }} already exists"
             echo "exists=true" >> $GITHUB_OUTPUT
           else
-            echo "Tag v${{ steps.version.outputs.version }} does not exist"
             echo "exists=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: Skip notification
-        if: steps.check_tag.outputs.exists == 'true'
-        run: |
-          echo "⏭️ Version ${{ steps.version.outputs.version }} already released"
-          echo "🏷️ Tag ${{ steps.version.outputs.tag }} exists"
-          echo "📦 Skipping release, tag creation, and crates.io publication"
-          echo ""
-          echo "Existing release: ${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ steps.version.outputs.tag }}"
-
-      - name: Run tests with retry
-        if: steps.check_tag.outputs.exists == 'false'
-        uses: nick-invision/retry@v2
+  test:
+    needs: setup
+    if: needs.setup.outputs.exists == 'false'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions-rs/toolchain@v1
         with:
-          timeout_minutes: 10
-          max_attempts: 6
-          retry_on: error
-          command: cargo test --all-features -- --nocapture
+          toolchain: stable
+      - run: cargo test --all-features -- --nocapture
 
-      - name: Check formatting with retry
-        if: steps.check_tag.outputs.exists == 'false'
-        uses: nick-invision/retry@v2
+  fmt:
+    needs: setup
+    if: needs.setup.outputs.exists == 'false'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions-rs/toolchain@v1
         with:
-          timeout_minutes: 5
-          max_attempts: 6
-          retry_on: error
-          command: cargo fmt -- --check
+          toolchain: stable
+      - run: cargo fmt -- --check
 
-      - name: Run clippy with retry
-        if: steps.check_tag.outputs.exists == 'false'
-        uses: nick-invision/retry@v2
+  clippy:
+    needs: setup
+    if: needs.setup.outputs.exists == 'false'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions-rs/toolchain@v1
         with:
-          timeout_minutes: 10
-          max_attempts: 6
-          retry_on: error
-          command: cargo clippy --all-features -- -A warnings
+          toolchain: stable
+      - run: cargo clippy --all-features -- -A warnings
 
-      - name: Build release with retry
-        if: steps.check_tag.outputs.exists == 'false'
-        uses: nick-invision/retry@v2
+  build:
+    needs: [setup, test, fmt, clippy]
+    if: needs.setup.outputs.exists == 'false'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions-rs/toolchain@v1
         with:
-          timeout_minutes: 15
-          max_attempts: 6
-          retry_on: error
-          command: cargo check --release --all-features
+          toolchain: stable
+      - run: cargo check --release --all-features
 
-      - name: Publish to crates.io with retry
-        if: steps.check_tag.outputs.exists == 'false'
-        uses: nick-invision/retry@v2
+  publish:
+    needs: build
+    if: needs.setup.outputs.exists == 'false'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions-rs/toolchain@v1
         with:
-          timeout_minutes: 10
-          max_attempts: 6
-          retry_on: error
-          command: |
-            if [ -z "$CARGO_REGISTRY_TOKEN" ]; then
-              echo "Error: CARGO_REGISTRY_TOKEN is not set"
-              echo "Please add CARGO_REGISTRY_TOKEN to your repository secrets"
-              exit 1
-            fi
-            echo "Logging in to crates.io..."
-            cargo login "$CARGO_REGISTRY_TOKEN"
-            echo "Publishing to crates.io..."
-            cargo publish --allow-dirty
+          toolchain: stable
+      - run: cargo login "$CARGO_REGISTRY_TOKEN"
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+      - run: cargo publish --allow-dirty
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
 
-      - name: Create and push tag with retry
-        if: steps.check_tag.outputs.exists == 'false'
-        uses: nick-invision/retry@v2
-        with:
-          timeout_minutes: 5
-          max_attempts: 6
-          retry_on: error
-          command: |
-            git config --local user.email "action@github.com"
-            git config --local user.name "GitHub Action"
-            git tag -a "${{ steps.version.outputs.tag }}" -m "${{ steps.version.outputs.tag }}"
-            git push origin "${{ steps.version.outputs.tag }}"
+  tag:
+    needs: publish
+    if: needs.setup.outputs.exists == 'false'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          git config user.name "GitHub Action"
+          git config user.email "action@github.com"
+          git tag -a "${{ needs.setup.outputs.tag }}" -m "${{ needs.setup.outputs.tag }}"
+          git push origin "${{ needs.setup.outputs.tag }}"
 
+  release:
+    needs: tag
+    if: needs.setup.outputs.exists == 'false'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
       - name: Install GitHub CLI
-        if: steps.check_tag.outputs.exists == 'false'
         run: |
           sudo apt-get update
-          sudo apt-get install gh
-
-      - name: Create GitHub Release with retry
-        if: steps.check_tag.outputs.exists == 'false'
-        uses: nick-invision/retry@v2
-        with:
-          timeout_minutes: 5
-          max_attempts: 6
-          retry_on: error
-          command: |
-            echo "Creating GitHub Release for tag: ${{ steps.version.outputs.tag }}"
-            echo "Checking if release already exists..."
-            if gh release view "${{ steps.version.outputs.tag }}" 2>/dev/null; then
-              echo "Release already exists, skipping creation"
-            else
-              echo "Creating new release..."
-              gh release create "${{ steps.version.outputs.tag }}" \
-                --title "${{ steps.version.outputs.tag }}" \
-                --notes "Release ${{ steps.version.outputs.tag }}" \
-                --latest
-              echo "Release created successfully"
-            fi
-            echo "Verifying release creation..."
-            gh release view "${{ steps.version.outputs.tag }}"
+          sudo apt-get install -y gh
+      - name: Create Release
+        run: |
+          gh release create "${{ needs.setup.outputs.tag }}" \
+            --title "${{ needs.setup.outputs.tag }}" \
+            --notes "Release ${{ needs.setup.outputs.tag }}" \
+            --latest
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Fallback - Create Release via API
-        if: steps.check_tag.outputs.exists == 'false'
-        run: |
-          echo "Attempting to create release via GitHub API as fallback..."
-          curl -X POST \
-            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
-            -H "Accept: application/vnd.github.v3+json" \
-            https://api.github.com/repos/${{ github.repository }}/releases \
-            -d '{
-              "tag_name": "${{ steps.version.outputs.tag }}",
-              "target_commitish": "${{ github.sha }}",
-              "name": "${{ steps.version.outputs.tag }}",
-              "body": "Release ${{ steps.version.outputs.tag }}",
-              "draft": false,
-              "prerelease": false,
-              "make_latest": "true"
-            }' || echo "Fallback API call failed or release already exists"
-
-      - name: Success notification
-        if: steps.check_tag.outputs.exists == 'false'
-        run: |
+  notify:
+    needs: release
+    if: needs.setup.outputs.exists == 'false'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
           PACKAGE_NAME=$(toml get Cargo.toml package.name --raw)
-          echo "✅ Successfully released version ${{ steps.version.outputs.version }}"
-          echo "📦 Published to crates.io: https://crates.io/crates/${PACKAGE_NAME}"
-          echo "🏷️ Created tag: ${{ steps.version.outputs.tag }}"
-          echo "🚀 GitHub Release: ${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ steps.version.outputs.tag }}"
-          echo ""
-          echo "You can view the release at:"
-          echo "${{ github.server_url }}/${{ github.repository }}/releases"
+          echo "✅ Released ${{ needs.setup.outputs.version }}"
+          echo "📦 https://crates.io/crates/$PACKAGE_NAME"
+          echo "🏷️ Tag: ${{ needs.setup.outputs.tag }}"
+          echo "🚀 Release: ${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ needs.setup.outputs.tag }}"
