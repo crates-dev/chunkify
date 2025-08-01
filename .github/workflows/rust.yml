@@ -151,6 +151,9 @@ jobs:
     steps:
       - name: checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ needs.setup.outputs.tag }}
       - name: create git tag
         run: |
           git config --local user.email "action@github.com"
