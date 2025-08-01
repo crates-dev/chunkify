@@ -141,6 +141,9 @@ jobs:
             echo "❌ publish failed, but continuing."
           fi
   create_tag:
+    permissions:
+      contents: write
+      packages: write
     needs:
       [publish_crate, run_tests, check_format, run_clippy, build_release, setup]
     if: needs.publish_crate.outputs.published == 'true' && needs.setup.outputs.tag != ''
@@ -155,6 +158,9 @@ jobs:
           git tag -a "${{ needs.setup.outputs.tag }}" -m "${{ needs.setup.outputs.tag }}"
           git push origin "${{ needs.setup.outputs.tag }}"
   create_release:
+    permissions:
+      contents: write
+      packages: write
     needs:
       [
         create_tag,
