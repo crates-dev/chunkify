@@ -12,8 +12,8 @@ jobs:
   setup:
     runs-on: ubuntu-latest
     outputs:
-      version: ${{ steps.version.outputs.version }}
-      tag: ${{ steps.version.outputs.tag }}
+      version: ${{ steps.read_version.outputs.version }}
+      tag: ${{ steps.read_version.outputs.tag }}
       exists: ${{ steps.check_tag.outputs.exists }}
     steps:
       - name: checkout code
@@ -40,171 +40,142 @@ jobs:
       - name: install toml-cli
         run: cargo install toml-cli
 
-      - name: read version from cargo.toml
-        id: version
+      - name: read version
+        id: read_version
         run: |
           VERSION=$(toml get Cargo.toml package.version --raw)
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "tag=v$VERSION" >> $GITHUB_OUTPUT
-
+          echo "detected version: $VERSION"
+          if [ -z "$VERSION" ]; then
+            echo "❌ failed to read version from Cargo.toml"
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
       - name: check if tag exists
         id: check_tag
         run: |
-          if git rev-parse "v${{ steps.version.outputs.version }}" >/dev/null 2>&1; then
-            echo "exists=true" >> $GITHUB_OUTPUT
+          if git rev-parse "v${{ steps.read_version.outputs.version }}" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
           else
-            echo "exists=false" >> $GITHUB_OUTPUT
+            echo "exists=false" >> "$GITHUB_OUTPUT"
           fi
-
-  test:
+  run_tests:
     needs: setup
     if: needs.setup.outputs.exists == 'false'
-    runs-on: ubuntu-latest
-    steps:
-      - name: checkout
-        uses: actions/checkout@v4
-      - name: run tests with retry
-        uses: nick-invision/retry@v2
-        with:
-          timeout_minutes: 10
-          max_attempts: 6
-          retry_on: error
-          command: cargo test --all-features -- --nocapture
-
-  fmt:
-    needs: setup
-    if: needs.setup.outputs.exists == 'false'
-    runs-on: ubuntu-latest
-    steps:
-      - name: checkout
-        uses: actions/checkout@v4
-      - name: check formatting with retry
-        uses: nick-invision/retry@v2
-        with:
-          timeout_minutes: 5
-          max_attempts: 6
-          retry_on: error
-          command: cargo fmt -- --check
-
-  clippy:
-    needs: setup
-    if: needs.setup.outputs.exists == 'false'
-    runs-on: ubuntu-latest
-    steps:
-      - name: checkout
-        uses: actions/checkout@v4
-      - name: run clippy with retry
-        uses: nick-invision/retry@v2
-        with:
-          timeout_minutes: 10
-          max_attempts: 6
-          retry_on: error
-          command: cargo clippy --all-features -- -A warnings
-
-  build:
-    needs: setup
-    if: needs.setup.outputs.exists == 'false'
-    runs-on: ubuntu-latest
-    steps:
-      - name: checkout
-        uses: actions/checkout@v4
-      - name: build release with retry
-        uses: nick-invision/retry@v2
-        with:
-          timeout_minutes: 15
-          max_attempts: 6
-          retry_on: error
-          command: cargo check --release --all-features
-
-  release:
-    needs: [test, fmt, clippy, build]
-    if: needs.test.result == 'success' &&
-      needs.fmt.result == 'success' &&
-      needs.clippy.result == 'success' &&
-      needs.build.result == 'success'
     runs-on: ubuntu-latest
     steps:
       - name: checkout code
         uses: actions/checkout@v4
-
-      - name: publish to crates.io with retry
-        uses: nick-invision/retry@v2
+      - name: install rust toolchain
+        uses: actions-rs/toolchain@v1
         with:
-          timeout_minutes: 10
-          max_attempts: 6
-          retry_on: error
-          command: |
-            if [ -z "$CARGO_REGISTRY_TOKEN" ]; then
-              echo "Error: CARGO_REGISTRY_TOKEN is not set"
-              exit 1
-            fi
-            echo "Logging in to crates.io..."
-            cargo login "$CARGO_REGISTRY_TOKEN"
-            echo "Publishing to crates.io..."
-            cargo publish --allow-dirty
+          toolchain: stable
+      - name: run cargo tests
+        run: cargo test --all-features -- --nocapture
+
+  check_format:
+    needs: setup
+    if: needs.setup.outputs.exists == 'false'
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout code
+        uses: actions/checkout@v4
+      - name: install rustfmt
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          components: rustfmt
+      - name: run cargo fmt
+        run: cargo fmt -- --check
+
+  run_clippy:
+    needs: setup
+    if: needs.setup.outputs.exists == 'false'
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout code
+        uses: actions/checkout@v4
+      - name: install clippy
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          components: clippy
+      - name: run cargo clippy
+        run: cargo clippy --all-features -- -A warnings
+
+  build_release:
+    needs: setup
+    if: needs.setup.outputs.exists == 'false'
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout code
+        uses: actions/checkout@v4
+      - name: install rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+      - name: run cargo check
+        run: cargo check --release --all-features
+
+  publish_crate:
+    needs: [run_tests, check_format, run_clippy, build_release, setup]
+    if: needs.setup.outputs.exists == 'false'
+    runs-on: ubuntu-latest
+    outputs:
+      published: ${{ steps.try_publish.outputs.published }}
+    steps:
+      - name: checkout code
+        uses: actions/checkout@v4
+
+      - name: try to publish crate
+        id: try_publish
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
-
-      - name: create and push tag with retry
-        uses: nick-invision/retry@v2
-        with:
-          timeout_minutes: 5
-          max_attempts: 6
-          retry_on: error
-          command: |
-            git config --local user.email "action@github.com"
-            git config --local user.name "GitHub Action"
-            git tag -a "${{ needs.setup.outputs.tag }}" -m "${{ needs.setup.outputs.tag }}"
-            git push origin "${{ needs.setup.outputs.tag }}"
-
-      - name: install github cli
         run: |
-          sudo apt-get update
-          sudo apt-get install -y gh
-
-      - name: create github release with retry
-        uses: nick-invision/retry@v2
-        with:
-          timeout_minutes: 5
-          max_attempts: 6
-          retry_on: error
-          command: |
-            if gh release view "${{ needs.setup.outputs.tag }}" 2>/dev/null; then
-              echo "Release already exists, skipping creation"
-            else
-              gh release create "${{ needs.setup.outputs.tag }}" \
-                --title "${{ needs.setup.outputs.tag }}" \
-                --notes "Release ${{ needs.setup.outputs.tag }}" \
-                --latest
-            fi
-            gh release view "${{ needs.setup.outputs.tag }}"
+          set -e
+          echo "published=false" >> $GITHUB_OUTPUT
+          echo "${{ secrets.CARGO_REGISTRY_TOKEN }}" | cargo login
+          if cargo publish --allow-dirty; then
+            echo "published=true" >> $GITHUB_OUTPUT
+          else
+            echo "❌ publish failed, but continuing."
+          fi
+  create_tag:
+    needs: publish_crate
+    if: needs.publish_crate.outputs.published == 'true' && needs.setup.outputs.tag != ''
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout code
+        uses: actions/checkout@v4
+      - name: create git tag
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "github action"
+          git tag -a "${{ needs.setup.outputs.tag }}" -m "${{ needs.setup.outputs.tag }}"
+          git push origin "${{ needs.setup.outputs.tag }}"
+  create_release:
+    needs: create_tag
+    if: always() && needs.publish_crate.outputs.published == 'true' && needs.setup.outputs.tag != ''
+    runs-on: ubuntu-latest
+    steps:
+      - name: create github release
+        run: |
+          gh release create "${{ needs.setup.outputs.tag }}" \
+            --title "${{ needs.setup.outputs.tag }}" \
+            --notes "release ${{ needs.setup.outputs.tag }}" \
+            --latest
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: fallback - create release via api
-        run: |
-          echo "Attempting to create release via GitHub API as fallback..."
-          curl -X POST \
-            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
-            -H "Accept: application/vnd.github.v3+json" \
-            https://api.github.com/repos/${{ github.repository }}/releases \
-            -d '{
-              "tag_name": "${{ needs.setup.outputs.tag }}",
-              "target_commitish": "${{ github.sha }}",
-              "name": "${{ needs.setup.outputs.tag }}",
-              "body": "Release ${{ needs.setup.outputs.tag }}",
-              "draft": false,
-              "prerelease": false,
-              "make_latest": "true"
-            }' || echo "Fallback API call failed or release already exists"
-
-      - name: success notification
+  success_notice:
+    needs: create_release
+    if: needs.publish_crate.outputs.published == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: output release info
         run: |
           PACKAGE_NAME=$(toml get Cargo.toml package.name --raw)
-          echo "✅ Successfully released version ${{ needs.setup.outputs.version }}"
-          echo "📦 Published to crates.io: https://crates.io/crates/${PACKAGE_NAME}"
-          echo "🏷️ Created tag: ${{ needs.setup.outputs.tag }}"
-          echo "🚀 GitHub Release: ${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ needs.setup.outputs.tag }}"
-          echo ""
-          echo "You can view the release at:"
-          echo "${{ github.server_url }}/${{ github.repository }}/releases"
+          echo "✅ released version ${{ needs.setup.outputs.version }}"
+          echo "📦 https://crates.io/crates/${PACKAGE_NAME}"
+          echo "🏷️ tag: ${{ needs.setup.outputs.tag }}"
+          echo "🚀 release: ${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ needs.setup.outputs.tag }}"
