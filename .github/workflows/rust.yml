@@ -59,6 +59,15 @@ jobs:
             echo "exists=false" >> $GITHUB_OUTPUT
           fi
 
+      - name: Skip notification
+        if: steps.check_tag.outputs.exists == 'true'
+        run: |
+          echo "⏭️ Version ${{ steps.version.outputs.version }} already released"
+          echo "🏷️ Tag ${{ steps.version.outputs.tag }} exists"
+          echo "📦 Skipping release, tag creation, and crates.io publication"
+          echo ""
+          echo "Existing release: ${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ steps.version.outputs.tag }}"
+
       - name: Run tests with retry
         if: steps.check_tag.outputs.exists == 'false'
         uses: nick-invision/retry@v2
@@ -94,6 +103,26 @@ jobs:
           max_attempts: 6
           retry_on: error
           command: cargo build --release --all-features
+
+      - name: Publish to crates.io with retry
+        if: steps.check_tag.outputs.exists == 'false'
+        uses: nick-invision/retry@v2
+        with:
+          timeout_minutes: 10
+          max_attempts: 6
+          retry_on: error
+          command: |
+            if [ -z "$CARGO_REGISTRY_TOKEN" ]; then
+              echo "Error: CARGO_REGISTRY_TOKEN is not set"
+              echo "Please add CARGO_REGISTRY_TOKEN to your repository secrets"
+              exit 1
+            fi
+            echo "Logging in to crates.io..."
+            cargo login "$CARGO_REGISTRY_TOKEN"
+            echo "Publishing to crates.io..."
+            cargo publish
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
 
       - name: Create and push tag with retry
         if: steps.check_tag.outputs.exists == 'false'
@@ -157,26 +186,6 @@ jobs:
               "make_latest": "true"
             }' || echo "Fallback API call failed or release already exists"
 
-      - name: Publish to crates.io with retry
-        if: steps.check_tag.outputs.exists == 'false'
-        uses: nick-invision/retry@v2
-        with:
-          timeout_minutes: 10
-          max_attempts: 6
-          retry_on: error
-          command: |
-            if [ -z "$CARGO_REGISTRY_TOKEN" ]; then
-              echo "Error: CARGO_REGISTRY_TOKEN is not set"
-              echo "Please add CARGO_REGISTRY_TOKEN to your repository secrets"
-              exit 1
-            fi
-            echo "Logging in to crates.io..."
-            cargo login "$CARGO_REGISTRY_TOKEN"
-            echo "Publishing to crates.io..."
-            cargo publish
-        env:
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
-
       - name: Success notification
         if: steps.check_tag.outputs.exists == 'false'
         run: |
@@ -188,8 +197,3 @@ jobs:
           echo ""
           echo "You can view the release at:"
           echo "${{ github.server_url }}/${{ github.repository }}/releases"
-
-      - name: Skip notification
-        if: steps.check_tag.outputs.exists == 'true'
-        run: |
-          echo "⏭️ Skipping release - tag ${{ steps.version.outputs.tag }} already exists"
