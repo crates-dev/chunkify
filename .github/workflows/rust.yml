@@ -120,6 +120,7 @@ jobs:
             echo "Logging in to crates.io..."
             cargo login "$CARGO_REGISTRY_TOKEN"
             echo "Publishing to crates.io..."
+            ls
             cargo publish --allow-dirty
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
