@@ -1,3 +1,7 @@
+//! chunkify
+//!
+//! A simple and efficient chunking library for Rust.
+
 pub(crate) mod cfg;
 pub(crate) mod chunk;
 

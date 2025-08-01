@@ -2,21 +2,142 @@ name: Rust
 
 on:
   push:
-    branches: [ "master" ]
-  pull_request:
-    branches: [ "master" ]
+    branches: [master]
+  workflow_dispatch:
 
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  build:
-
+  release:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v4
-    - name: Build
-      run: cargo build --verbose
-    - name: Run tests
-      run: cargo test --verbose
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install Rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+          components: rustfmt, clippy
+
+      - name: Cache cargo registry
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Install toml-cli
+        run: cargo install toml-cli
+
+      - name: Read version from Cargo.toml
+        id: version
+        run: |
+          VERSION=$(toml get Cargo.toml package.version --raw)
+          echo "Current version: $VERSION"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "tag=v$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Check if tag exists
+        id: check_tag
+        run: |
+          if git rev-parse "v${{ steps.version.outputs.version }}" >/dev/null 2>&1; then
+            echo "Tag v${{ steps.version.outputs.version }} already exists"
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "Tag v${{ steps.version.outputs.version }} does not exist"
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Run tests with retry
+        if: steps.check_tag.outputs.exists == 'false'
+        uses: nick-invision/retry@v2
+        with:
+          timeout_minutes: 10
+          max_attempts: 6
+          retry_on: error
+          command: cargo test --all-features
+
+      - name: Check formatting with retry
+        if: steps.check_tag.outputs.exists == 'false'
+        uses: nick-invision/retry@v2
+        with:
+          timeout_minutes: 5
+          max_attempts: 6
+          retry_on: error
+          command: cargo fmt -- --check
+
+      - name: Run clippy with retry
+        if: steps.check_tag.outputs.exists == 'false'
+        uses: nick-invision/retry@v2
+        with:
+          timeout_minutes: 10
+          max_attempts: 6
+          retry_on: error
+          command: cargo clippy --all-features -- -D warnings
+
+      - name: Build release with retry
+        if: steps.check_tag.outputs.exists == 'false'
+        uses: nick-invision/retry@v2
+        with:
+          timeout_minutes: 15
+          max_attempts: 6
+          retry_on: error
+          command: cargo build --release --all-features
+
+      - name: Create and push tag with retry
+        if: steps.check_tag.outputs.exists == 'false'
+        uses: nick-invision/retry@v2
+        with:
+          timeout_minutes: 5
+          max_attempts: 6
+          retry_on: error
+          command: |
+            git config --local user.email "action@github.com"
+            git config --local user.name "GitHub Action"
+            git tag -a "${{ steps.version.outputs.tag }}" -m "${{ steps.version.outputs.tag }}"
+            git push origin "${{ steps.version.outputs.tag }}"
+
+      - name: Create GitHub Release with retry
+        if: steps.check_tag.outputs.exists == 'false'
+        uses: nick-invision/retry@v2
+        with:
+          timeout_minutes: 5
+          max_attempts: 6
+          retry_on: error
+          command: |
+            gh release create "${{ steps.version.outputs.tag }}" \
+              --title "${{ steps.version.outputs.tag }}" \
+              --notes "${{ steps.version.outputs.tag }}" \
+              --generate-notes
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish to crates.io with retry
+        if: steps.check_tag.outputs.exists == 'false'
+        uses: nick-invision/retry@v2
+        with:
+          timeout_minutes: 10
+          max_attempts: 6
+          retry_on: error
+          command: cargo publish --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
+
+      - name: Success notification
+        if: steps.check_tag.outputs.exists == 'false'
+        run: |
+          echo "✅ Successfully released version ${{ steps.version.outputs.version }}"
+          echo "📦 Published to crates.io: https://crates.io/crates/$(toml get Cargo.toml package.name --raw)"
+          echo "🏷️ Created tag: ${{ steps.version.outputs.tag }}"
+
+      - name: Skip notification
+        if: steps.check_tag.outputs.exists == 'true'
+        run: |
+          echo "⏭️ Skipping release - tag ${{ steps.version.outputs.tag }} already exists"
