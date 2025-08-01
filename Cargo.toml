@@ -1,6 +1,6 @@
 [package]
 name = "chunkify"
-version = "0.6.30"
+version = "0.6.31"
 readme = "README.md"
 edition = "2024"
 authors = ["root@ltpp.vip"]

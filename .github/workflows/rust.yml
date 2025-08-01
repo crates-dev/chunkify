@@ -128,7 +128,7 @@ jobs:
         run: cargo check --release --all-features
 
   publish_crate:
-    needs: [setup, run_tests, check_format, run_clippy, build_release]
+    needs: [setup]
     if: needs.setup.outputs.exists == 'false'
     runs-on: ubuntu-latest
     outputs:
@@ -155,7 +155,7 @@ jobs:
     permissions:
       contents: write
       packages: write
-    needs: [publish_crate, setup]
+    needs: [setup, publish_crate]
     if: needs.publish_crate.outputs.published == 'true' && needs.setup.outputs.tag != ''
     runs-on: ubuntu-latest
     steps:
@@ -175,7 +175,7 @@ jobs:
     permissions:
       contents: write
       packages: write
-    needs: [create_tag, publish_crate]
+    needs: [setup, publish_crate]
     if: needs.publish_crate.outputs.published == 'true' && needs.setup.outputs.tag != ''
     runs-on: ubuntu-latest
     steps:
