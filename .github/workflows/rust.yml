@@ -14,7 +14,6 @@ jobs:
     outputs:
       version: ${{ steps.read_version.outputs.version }}
       tag: ${{ steps.read_version.outputs.tag }}
-      exists: ${{ steps.check_tag.outputs.exists }}
     steps:
       - name: checkout_code
         uses: actions/checkout@v4
@@ -22,10 +21,9 @@ jobs:
           fetch-depth: 0
 
       - name: install_rust_toolchain
-        uses: actions-rs/toolchain@v1
+        uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: stable
-          override: true
           components: rustfmt, clippy
 
       - name: cache_cargo_registry
@@ -55,44 +53,18 @@ jobs:
             echo "❌ failed to read version from Cargo.toml"
             exit 1
           fi
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
-
-      - name: check_if_tag_exists
-        id: check_tag
-        run: |
-          if git rev-parse "v${{ steps.read_version.outputs.version }}" >/dev/null 2>&1; then
-            echo "exists=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "exists=false" >> "$GITHUB_OUTPUT"
-          fi
-
-  run_tests:
-    needs: setup
-    if: needs.setup.outputs.exists == 'false'
-    runs-on: ubuntu-latest
-    steps:
-      - name: checkout_code
-        uses: actions/checkout@v4
-
-      - name: install_rust_toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-
-      - name: run_cargo_tests
-        run: cargo test --all-features -- --nocapture
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "tag=v$VERSION" >> $GITHUB_OUTPUT
 
   check_format:
     needs: setup
-    if: needs.setup.outputs.exists == 'false'
     runs-on: ubuntu-latest
     steps:
       - name: checkout_code
         uses: actions/checkout@v4
 
       - name: install_rustfmt
-        uses: actions-rs/toolchain@v1
+        uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: stable
           components: rustfmt
@@ -100,16 +72,30 @@ jobs:
       - name: run_cargo_fmt
         run: cargo fmt -- --check
 
+  run_tests:
+    needs: setup
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout_code
+        uses: actions/checkout@v4
+
+      - name: install_rust_toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+
+      - name: run_cargo_tests
+        run: cargo test --all-features -- --nocapture
+
   run_clippy:
     needs: setup
-    if: needs.setup.outputs.exists == 'false'
     runs-on: ubuntu-latest
     steps:
       - name: checkout_code
         uses: actions/checkout@v4
 
       - name: install_clippy
-        uses: actions-rs/toolchain@v1
+        uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: stable
           components: clippy
@@ -119,14 +105,13 @@ jobs:
 
   build_release:
     needs: setup
-    if: needs.setup.outputs.exists == 'false'
     runs-on: ubuntu-latest
     steps:
       - name: checkout_code
         uses: actions/checkout@v4
 
       - name: install_rust_toolchain
-        uses: actions-rs/toolchain@v1
+        uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: stable
 
@@ -134,8 +119,7 @@ jobs:
         run: cargo check --release --all-features
 
   publish_crate:
-    needs: [setup]
-    if: needs.setup.outputs.exists == 'false'
+    needs: [setup, check_format, run_tests, run_clippy, build_release]
     runs-on: ubuntu-latest
     outputs:
       published: ${{ steps.try_publish.outputs.published }}
@@ -158,10 +142,10 @@ jobs:
           fi
 
   create_release:
+    needs: [setup, publish_crate]
     permissions:
       contents: write
       packages: write
-    needs: [setup, publish_crate]
     if: needs.publish_crate.outputs.published == 'true' && needs.setup.outputs.tag != ''
     runs-on: ubuntu-latest
     steps:
@@ -180,10 +164,13 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   success_notice:
-    needs: [setup, publish_crate]
+    needs: [setup, publish_crate, create_release]
     if: needs.publish_crate.outputs.published == 'true'
     runs-on: ubuntu-latest
     steps:
+      - name: checkout_code
+        uses: actions/checkout@v4
+
       - name: restore_toml_cli
         uses: actions/cache@v3
         with:

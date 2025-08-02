@@ -5,7 +5,7 @@
 [![](https://img.shields.io/crates/v/chunkify.svg)](https://crates.io/crates/chunkify)
 [![](https://img.shields.io/crates/d/chunkify.svg)](https://img.shields.io/crates/d/chunkify.svg)
 [![](https://docs.rs/chunkify/badge.svg)](https://docs.rs/chunkify)
-[![](https://github.com/eastspire/chunkify/workflows/Rust/badge.svg)](https://github.com/eastspire/chunkify/actions?query=workflow:Rust)
+[![](https://github.com/crates-dev/chunkify/workflows/Rust/badge.svg)](https://github.com/crates-dev/chunkify/actions?query=workflow:Rust)
 [![](https://img.shields.io/crates/l/chunkify.svg)](./LICENSE)
 
 </center>
