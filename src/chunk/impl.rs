@@ -56,6 +56,7 @@ impl<'a> ChunkStrategy<'a> {
     /// # Returns
     ///
     /// - `String` - Generated path in JSON format
+    #[inline(always)]
     fn get_chunk_json_path(&self, file_id: &'a str, chunk_index: usize) -> String {
         (self.file_name_func)(file_id, chunk_index)
     }
@@ -70,7 +71,7 @@ impl<'a> ChunkStrategy<'a> {
     /// # Returns
     ///
     /// - `String` - Absolute path to chunk file
-    #[inline]
+    #[inline(always)]
     fn get_chunk_path(&self, file_id: &'a str, chunk_index: usize) -> String {
         Path::new(&self.upload_dir)
             .join(self.get_chunk_json_path(file_id, chunk_index))
