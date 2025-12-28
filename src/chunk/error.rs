@@ -49,26 +49,25 @@ impl fmt::Display for ChunkStrategyError {
             ChunkStrategyError::MissingFileName => "Missing X-File-Name header",
             ChunkStrategyError::EmptyChunkData => "Empty chunk data",
             ChunkStrategyError::CreateDirectory(msg) => {
-                &format!("Failed to create directory: {}", msg)
+                &format!("Failed to create directory: {msg}")
             }
             ChunkStrategyError::CreateChunkFile(msg) => {
-                &format!("Failed to create chunk file: {}", msg)
+                &format!("Failed to create chunk file: {msg}")
             }
-            ChunkStrategyError::WriteChunk(msg) => &format!("Failed to write chunk: {}", msg),
+            ChunkStrategyError::WriteChunk(msg) => &format!("Failed to write chunk: {msg}"),
             ChunkStrategyError::CreateOutputFile(msg) => {
-                &format!("Failed to create output file: {}", msg)
+                &format!("Failed to create output file: {msg}")
             }
-            ChunkStrategyError::ReadChunk(msg) => &format!("Failed to read chunk: {}", msg),
+            ChunkStrategyError::ReadChunk(msg) => &format!("Failed to read chunk: {msg}"),
             ChunkStrategyError::WriteOutput(msg) => {
-                &format!("Failed to write to output file: {}", msg)
+                &format!("Failed to write to output file: {msg}")
             }
-            ChunkStrategyError::Merge => &format!("Failed to complete the file merge operation"),
+            ChunkStrategyError::Merge => "Failed to complete the file merge operation",
             ChunkStrategyError::IndexOutOfBounds(chunk_index, total_chunks) => &format!(
-                "Index {} out of bounds(total: {})",
-                chunk_index, total_chunks
+                "Index {chunk_index} out of bounds(total: {total_chunks})"
             ),
         };
-        write!(f, "{}", message)
+        write!(f, "{message}")
     }
 }
 

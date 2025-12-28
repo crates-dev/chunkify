@@ -94,8 +94,7 @@ impl<'a> ChunkStrategy<'a> {
             .await
             .map_err(|e| {
                 ChunkStrategyError::WriteChunk(format!(
-                    "Failed to write chunk to {}: {}",
-                    chunk_path, e
+                    "Failed to write chunk to {chunk_path}: {e}"
                 ))
             })?;
         Ok(())
@@ -116,11 +115,11 @@ impl<'a> HandleStrategy<'a> for ChunkStrategy<'a> {
     /// - `ChunkStrategyResult` - Result of save operation.
     async fn save_chunk(&self, chunk_data: &'a [u8], chunk_index: usize) -> ChunkStrategyResult {
         if !Path::new(&self.upload_dir).exists() {
-            fs::create_dir_all(&self.upload_dir)
+            fs::create_dir_all(self.upload_dir)
                 .map_err(|e| ChunkStrategyError::CreateDirectory(e.to_string()))?;
         }
         let chunk_path: String = self.get_chunk_path(self.file_id, chunk_index);
-        self.save_chunk(&chunk_path, &chunk_data).await?;
+        self.save_chunk(&chunk_path, chunk_data).await?;
         let chunks_status: RefMut<'_, String, RwLock<Vec<bool>>> = UPLOADING_FILES
             .entry(self.file_id.to_owned())
             .or_insert_with(|| RwLock::new(vec![false; self.total_chunks]));
@@ -168,8 +167,7 @@ impl<'a> HandleStrategy<'a> for ChunkStrategy<'a> {
             let chunk_path: String = self.get_chunk_path(self.file_id, i);
             let chunk_data: Vec<u8> = async_read_from_file(&chunk_path).await.map_err(|e| {
                 ChunkStrategyError::ReadChunk(format!(
-                    "Failed to read chunk from {}: {}",
-                    chunk_path, e
+                    "Failed to read chunk from {chunk_path}: {e}"
                 ))
             })?;
             writer
