@@ -63,9 +63,9 @@ impl fmt::Display for ChunkStrategyError {
                 &format!("Failed to write to output file: {msg}")
             }
             ChunkStrategyError::Merge => "Failed to complete the file merge operation",
-            ChunkStrategyError::IndexOutOfBounds(chunk_index, total_chunks) => &format!(
-                "Index {chunk_index} out of bounds(total: {total_chunks})"
-            ),
+            ChunkStrategyError::IndexOutOfBounds(chunk_index, total_chunks) => {
+                &format!("Index {chunk_index} out of bounds(total: {total_chunks})")
+            }
         };
         write!(f, "{message}")
     }

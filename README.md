@@ -24,24 +24,6 @@ To use this crate, you can run cmd:
 cargo add chunkify
 ```
 
-## Use
-
-```rust
-use chunkify::*;
-
-let chunk_strategy: ChunkStrategy<'_> = ChunkStrategy::new(
-    0,
-    "./uploads",
-    "abcdefg",
-    "test.txt",
-    1,
-    |file_id: &str, chunk_index: usize| format!("{file_id}.{chunk_index}"),
-)
-.unwrap();
-chunk_strategy.save_chunk(b"test", 0).await.unwrap();
-chunk_strategy.merge_chunks().await.unwrap();
-```
-
 ## License
 
 This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
