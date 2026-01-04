@@ -159,6 +159,7 @@ impl<'a> HandleStrategy<'a> for ChunkStrategy<'a> {
             .into_owned();
         let output_file: File = OpenOptions::new()
             .create(true)
+            .truncate(true)
             .write(true)
             .open(&final_path)
             .map_err(|e| ChunkStrategyError::CreateOutputFile(e.to_string()))?;
