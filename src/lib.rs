@@ -2,14 +2,19 @@
 //!
 //! A simple and efficient chunking library for Rust.
 
-pub(crate) mod cfg;
-pub(crate) mod chunk;
+mod r#const;
+mod r#enum;
+mod r#impl;
+mod r#static;
+mod r#struct;
+mod r#trait;
+mod r#type;
 
-pub(crate) use chunk::lazy::*;
-pub(crate) use dashmap::{DashMap, mapref::one::RefMut};
-pub(crate) use file_operation::*;
-pub(crate) use once_cell::sync::Lazy;
-pub(crate) use std::{
+pub use {r#const::*, r#enum::*, r#struct::*, r#trait::*, r#type::*};
+
+use r#static::*;
+
+use std::{
     fmt,
     fs::{self, File, OpenOptions},
     hash::BuildHasherDefault,
@@ -17,7 +22,11 @@ pub(crate) use std::{
     path::Path,
     sync::Arc,
 };
-pub(crate) use tokio::sync::{RwLock, RwLockWriteGuard};
-pub(crate) use twox_hash::XxHash3_64;
 
-pub use chunk::{r#const::*, error::*, r#struct::*, r#trait::*, r#type::*};
+use {
+    dashmap::{DashMap, mapref::one::RefMut},
+    file_operation::*,
+    once_cell::sync::Lazy,
+    tokio::sync::{RwLock, RwLockWriteGuard},
+    twox_hash::XxHash3_64,
+};
