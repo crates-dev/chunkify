@@ -18,7 +18,7 @@ pub trait HandleStrategy<'a>: Send + Sync {
     ///
     /// # Returns
     ///
-    /// - `impl Future<Output = ChunkStrategyResult>` - Future of the save operation.
+    /// - `Future<Output = ChunkStrategyResult>` - Future of the save operation.
     fn save_chunk(
         &self,
         chunk_data: &'a [u8],
@@ -29,6 +29,6 @@ pub trait HandleStrategy<'a>: Send + Sync {
     ///
     /// # Returns
     ///
-    /// - `impl Future<Output = ChunkStrategyResult>` - Future of the merge operation.
+    /// - `Future<Output = ChunkStrategyResult>` - Future of the merge operation.
     fn merge_chunks(&self) -> impl Future<Output = ChunkStrategyResult> + Send;
 }
