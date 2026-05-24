@@ -1,7 +1,7 @@
+use crate::*;
+
 #[tokio::test]
 async fn handle() {
-    use crate::*;
-
     let chunk_strategy: ChunkStrategy<'_> = ChunkStrategy::new(
         0,
         "./uploads",
