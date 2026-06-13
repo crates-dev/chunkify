@@ -10,8 +10,6 @@
 
 </center>
 
-[Official Documentation](https://docs.ltpp.vip/chunkify/)
-
 [Api Docs](https://docs.rs/chunkify/latest/)
 
 > A simple and efficient chunking library for Rust.
