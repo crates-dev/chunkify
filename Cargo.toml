@@ -1,6 +1,6 @@
 [package]
 name = "chunkify"
-version = "0.6.56"
+version = "0.6.57"
 readme = "README.md"
 edition = "2024"
 authors = ["root@ltpp.vip"]
@@ -22,9 +22,9 @@ exclude = [
 [dependencies]
 dashmap = "6.2.1"
 once_cell = "1.21.4"
-twox-hash = "2.1.2"
-file-operation = "0.8.27"
-tokio = { version = "1.52.3", features = ["full"] }
+twox-hash = "2.1.3"
+file-operation = "0.8.28"
+tokio = { version = "1.53.0", features = ["full"] }
 
 [profile.dev]
 incremental = false
