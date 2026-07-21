@@ -1,4 +1,4 @@
-use crate::*;
+use super::*;
 
 /// Provides display formatting for chunk strategy errors.
 impl fmt::Display for ChunkStrategyError {
@@ -138,9 +138,9 @@ impl<'a> ChunkStrategy<'a> {
     async fn save_chunk(&self, chunk_path: &str, chunk_data: &[u8]) -> ChunkStrategyResult {
         async_write_to_file(chunk_path, chunk_data)
             .await
-            .map_err(|e| {
+            .map_err(|error: Error| {
                 ChunkStrategyError::WriteChunk(format!(
-                    "Failed to write chunk to {chunk_path}: {e}"
+                    "Failed to write chunk to {chunk_path}: {error}"
                 ))
             })?;
         Ok(())
@@ -162,7 +162,7 @@ impl<'a> HandleStrategy<'a> for ChunkStrategy<'a> {
     async fn save_chunk(&self, chunk_data: &'a [u8], chunk_index: usize) -> ChunkStrategyResult {
         if !Path::new(&self.upload_dir).exists() {
             fs::create_dir_all(self.upload_dir)
-                .map_err(|e| ChunkStrategyError::CreateDirectory(e.to_string()))?;
+                .map_err(|error: Error| ChunkStrategyError::CreateDirectory(error.to_string()))?;
         }
         let chunk_path: String = self.get_chunk_path(self.file_id, chunk_index);
         self.save_chunk(&chunk_path, chunk_data).await?;
@@ -208,18 +208,20 @@ impl<'a> HandleStrategy<'a> for ChunkStrategy<'a> {
             .truncate(true)
             .write(true)
             .open(&final_path)
-            .map_err(|e| ChunkStrategyError::CreateOutputFile(e.to_string()))?;
+            .map_err(|error: Error| ChunkStrategyError::CreateOutputFile(error.to_string()))?;
         let mut writer: BufWriter<File> = BufWriter::new(output_file);
         for i in self.start_chunk_index..self.total_chunks {
             let chunk_path: String = self.get_chunk_path(self.file_id, i);
-            let chunk_data: Vec<u8> = async_read_from_file(&chunk_path).await.map_err(|e| {
-                ChunkStrategyError::ReadChunk(format!(
-                    "Failed to read chunk from {chunk_path}: {e}"
-                ))
-            })?;
+            let chunk_data: Vec<u8> = async_read_from_file(&chunk_path).await.map_err(
+                |error: Box<dyn std::error::Error>| {
+                    ChunkStrategyError::ReadChunk(format!(
+                        "Failed to read chunk from {chunk_path}: {error}"
+                    ))
+                },
+            )?;
             writer
                 .write_all(&chunk_data)
-                .map_err(|e| ChunkStrategyError::WriteOutput(e.to_string()))?;
+                .map_err(|error: Error| ChunkStrategyError::WriteOutput(error.to_string()))?;
             let _ = fs::remove_file(&chunk_path);
         }
         Ok(())

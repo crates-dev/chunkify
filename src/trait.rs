@@ -1,4 +1,4 @@
-use crate::*;
+use super::*;
 
 /// Trait for generating chunk file names.
 ///

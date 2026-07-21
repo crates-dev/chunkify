@@ -1,4 +1,4 @@
-use crate::*;
+use super::*;
 
 /// Result type for creating new chunk strategies.
 pub type NewChunkStrategyResult<'a> = Result<ChunkStrategy<'a>, ChunkStrategyError>;

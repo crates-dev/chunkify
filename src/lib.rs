@@ -18,7 +18,7 @@ use std::{
     fmt,
     fs::{self, File, OpenOptions},
     hash::BuildHasherDefault,
-    io::{BufWriter, Write},
+    io::{BufWriter, Error, Write},
     path::Path,
     sync::Arc,
 };
