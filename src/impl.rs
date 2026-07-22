@@ -3,7 +3,7 @@ use super::*;
 /// Provides display formatting for chunk strategy errors.
 impl fmt::Display for ChunkStrategyError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let message = match self {
+        let message: &str = match self {
             ChunkStrategyError::MissingFileId => "Missing X-File-Id header",
             ChunkStrategyError::InvalidChunkIndex => "Invalid X-Chunk-Index header",
             ChunkStrategyError::MissingChunkIndex => "Missing X-Chunk-Index header",
@@ -222,7 +222,7 @@ impl<'a> HandleStrategy<'a> for ChunkStrategy<'a> {
             writer
                 .write_all(&chunk_data)
                 .map_err(|error: Error| ChunkStrategyError::WriteOutput(error.to_string()))?;
-            let _ = fs::remove_file(&chunk_path);
+            let _: Result<(), Error> = fs::remove_file(&chunk_path);
         }
         Ok(())
     }
